@@ -125,10 +125,17 @@ class TacoSearchMCPClient:
     async def _initialize_mcp_connection(self):
         """Initialize the MCP connection with proper handshake"""
         try:
-            # Send initialize request
-            init_response = await self.send_mcp_request(
-                "initialize",
-                {
+            # Start response processor FIRST
+            if self.response_processor_task is None or self.response_processor_task.done():
+                self.response_processor_task = asyncio.create_task(self._process_responses())
+            
+            # Send initialize request directly without using send_mcp_request
+            # to avoid circular dependency during initialization
+            init_request = {
+                "jsonrpc": "2.0",
+                "id": self.request_id,
+                "method": "initialize",
+                "params": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {
                         "tools": {}
@@ -138,15 +145,35 @@ class TacoSearchMCPClient:
                         "version": "1.0.0"
                     }
                 }
-            )
+            }
             
-            print(f"Taco Search Initialize response: {init_response}")
+            # Create future for this request
+            future = asyncio.Future()
+            self.pending_requests[self.request_id] = future
+            self.request_id += 1
             
-            # Send initialized notification
-            await self.send_mcp_notification("notifications/initialized", {})
+            # Send the request
+            request_json = json.dumps(init_request) + "\n"
+            print(f"🔵 Sending MCP initialize request")
+            self.process.stdin.write(request_json.encode())
+            await self.process.stdin.drain()
+            
+            # Wait for response
+            try:
+                init_response = await asyncio.wait_for(future, timeout=10.0)
+                print(f"✅ Taco Search Initialize response: {init_response}")
+                
+                # Send initialized notification
+                await self.send_mcp_notification("notifications/initialized", {})
+                print("✅ MCP initialization complete")
+                
+            except asyncio.TimeoutError:
+                print("❌ Timeout during MCP initialization")
+                raise Exception("MCP initialization timeout")
             
         except Exception as e:
-            print(f"Error initializing taco search MCP connection: {e}")
+            print(f"❌ Error initializing taco search MCP connection: {e}")
+            raise
     
     async def send_mcp_notification(self, method: str, params: Dict[str, Any]):
         """Send a notification (no response expected)"""
