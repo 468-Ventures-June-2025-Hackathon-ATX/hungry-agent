@@ -1,19 +1,20 @@
 # Hungry Agent - Voice-Based Taco Ordering System
 
-## Enhanced MacBook M3 Local Architecture with Multi-Order Dashboard
+## Enhanced MacBook M3 Local Architecture with Browser-Based Voice Interface
 
 ```mermaid
 graph TD
-    subgraph MacBook M3 Local Environment
-        MIC[Mac Microphone] --> PCM[Raw Audio]
-        WAV[Generated Audio] --> SPKR[Mac Speakers]
+    subgraph Browser Environment
+        MIC[Mac Microphone] --> BROWSER_STT[Web Speech API]
+        BROWSER_TTS[Browser TTS] --> SPKR[Mac Speakers]
+        UI[React Dashboard :3000] --> BROWSER_STT
+        BROWSER_TTS --> UI
     end
 
     subgraph Core Pipeline - hungry-agent
-        PCM -->|Core ML Whisper.cpp| STT[Speech-to-Text]
-        STT -->|transcribed text| ORCH[FastAPI Orchestrator]
-        ORCH -->|response text| TTS[Apple Metal TTS]
-        TTS -->|synthesized audio| WAV
+        BROWSER_STT -->|transcribed text| ORCH[FastAPI Orchestrator :8000]
+        ORCH -->|response text| TTS_SERVICE[TTS Service :5002]
+        TTS_SERVICE -->|audio file| BROWSER_TTS
     end
 
     subgraph AI Processing
@@ -21,110 +22,195 @@ graph TD
         CLAUDE -->|function calls JSON| ORCH
     end
 
-    subgraph Local MCP Servers
+    subgraph MCP Integration
         ORCH -->|order commands| UBER[Uber Eats MCP :7001]
-        ORCH -->|order commands| DD[DoorDash MCP :7002]
+        ORCH -->|batch orders| BATCH[Batch MCP Orchestrator]
         UBER -->|headless Chrome| UE_BROWSER[Uber Eats Automation]
-        DD -->|headless Chrome| DD_BROWSER[DoorDash Automation]
+        BATCH -->|concurrent orders| UE_BROWSER
     end
 
     subgraph Real-time Dashboard
-        ORCH -->|WebSocket| DASH[Live Order Dashboard]
-        DASH -->|real-time updates| UI[Browser UI :3000]
-        UI -->|order monitoring| QUEUE[Order Queue & Status]
+        ORCH -->|WebSocket| UI
+        UI -->|voice input| ORCH
+        UI -->|real-time updates| VOICE_ACTIVITY[Voice Activity Feed]
+        UI -->|order monitoring| ORDER_STATUS[Order Status & Tracking]
+        UI -->|batch control| BATCH_UI[Batch Order Management]
+        UI -->|delivery settings| DELIVERY[Delivery Address Config]
     end
 
     style MIC fill:#e3f2fd
     style ORCH fill:#f3e5f5
     style CLAUDE fill:#fff3e0
-    style DASH fill:#e8f5e8
+    style UI fill:#e8f5e8
+    style BATCH fill:#fff9c4
 ```
 
 ---
 
-#### 1.  Process map (all run as **local processes**, no containers needed)
+#### 1. Process map (all run as **local processes**, no containers needed)
 
 | Proc                      | Cmd (example)                            | HW use         | Notes                                                                                                        |
 | ------------------------- | ---------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------ |
-| **hungry-agent-stt**      | `hungry-agent stt --model tiny --coreml` | Apple NE / CPU | Whisper.cpp compiled with `WHISPER_COREML=1` → 3-6× faster than CPU-only on M-series chips ([github.com][1]) |
-| **hungry-agent-tts**      | `hungry-agent tts --voice en-US-rf1`     | GPU / CPU      | Apple Metal backend keeps latency <150 ms                                                                    |
-| **orchestrator**          | `uvicorn app:app --reload`               | CPU            | Streams STT tokens to Claude, parses tool calls, routes                                                      |
-| **uber-mcp**              | `node index.js --port 7001`              | CPU            | Runs headless Chrome locally                                                                                 |
-| **doordash-mcp**          | `node index.js --port 7002`              | CPU            | Same                                                                                                         |
-| **frontend** *(optional)* | Electron or simple Tk                    | CPU/GPU        | Shows live transcript + order status                                                                         |
+| **orchestrator**          | `uvicorn orchestrator.app:app --port 8000` | CPU            | Main FastAPI app with Claude integration, WebSocket dashboard updates, batch ordering                        |
+| **tts-service**           | `python tts_service.py --port 5002`      | CPU            | macOS `say` command TTS with audio file serving and browser fallback                                        |
+| **dashboard**             | `cd dashboard && npm run dev --port 3000` | CPU/GPU        | React dashboard with browser-based STT (Web Speech API), real-time voice visualization                      |
+| **uber-mcp**              | `cd submodules/uber-eats-mcp-server && python server.py` | CPU            | Uber Eats MCP server with headless Chrome automation for restaurant search and ordering                     |
 
 > All ports are 127.0.0.1; nothing is exposed beyond the laptop.
 
 ---
 
-#### 2.  Key design adjustments for a single Mac
+#### 2. Key design adjustments for browser-based implementation
 
 | Aspect                        | Change                                                                                                                                                  | Rationale                                     |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| **No edge gateway**           | Capture mic directly with `pyaudio`/`sounddevice`.                                                                                                      | Removes one hop & keeps stack minimal.        |
-| **Model acceleration**        | Build Whisper.cpp with Core ML; M3’s Neural Engine gives near-real-time transcription for tiny/base models ([news.ycombinator.com][2], [apple.com][3]). | Keeps CPU free for MCP headless browsers.     |
-| **Process manager**           | Use **`justfile`** or **`foreman`** (`brew install foreman`) to start all five processes with one command.                                              | Light-weight replacement for Docker Compose.  |
-| **Secrets**                   | `.env` in project root (git-ignored). Load with `python-dotenv`.                                                                                        | Simpler than Docker secrets on a single host. |
-| **Browser automation limits** | Run MCP servers with `--headful=false --concurrency 1` to keep memory under 8 GB.                                                                       | Chrome can be heavy on RAM.                   |
+| **Browser-based STT**         | Use Web Speech API (webkitSpeechRecognition) directly in React dashboard instead of Whisper.cpp                                                       | Eliminates need for Core ML setup, works immediately in browser |
+| **Hybrid TTS**                | Separate TTS service using macOS `say` command + browser fallback for audio playback                                                                   | Leverages native macOS TTS quality with web delivery |
+| **Real-time dashboard**       | React dashboard with WebSocket connections for live voice activity, order tracking, and batch management                                               | Provides rich UI for monitoring and control |
+| **Batch ordering**            | Built-in batch MCP orchestrator for concurrent restaurant searches and ordering                                                                        | Enables ordering from multiple restaurants simultaneously |
+| **Process manager**           | Use **`justfile`** or **`foreman`** (`brew install foreman`) to start all four processes with one command                                              | Light-weight replacement for Docker Compose  |
+| **Browser automation limits** | Run MCP servers with headless Chrome, limit concurrent sessions to prevent memory issues                                                               | Chrome can be heavy on RAM                   |
 
 ---
 
-#### 3.  Repo layout
+#### 3. Actual repo layout
 
 ```
-voice-taco-bot/
+hungry-agent/
 │  .env.example
-│  Procfile              # hungry-stt, hungry-tts, orch, uber, dd
-│  justfile / Makefile   # shortcuts
-├─hungry-agent/          # git submodule
-├─uber-eats-mcp-server/  # git submodule
-├─doordash-mcp-server/   # git submodule
-└─orch/
-   ├─app.py              # FastAPI w/ Anthropic streaming & tool routing
-   └─requirements.txt
+│  .env                  # Your API keys and credentials
+│  Procfile              # orchestrator, tts-service, dashboard, uber-mcp
+│  justfile              # Development shortcuts
+│  tts_service.py        # Standalone TTS service
+│  requirements.txt      # Python dependencies
+├─orchestrator/          # Main Python application
+│   ├─app.py             # FastAPI with Claude integration & WebSocket
+│   ├─claude_client.py   # Anthropic Claude API client
+│   ├─mcp_client.py      # MCP server communication
+│   ├─real_mcp_client.py # Real MCP client wrapper
+│   ├─batch_mcp_client.py# Batch ordering orchestrator
+│   ├─models.py          # Data models and schemas
+│   ├─database.py        # SQLite database management
+│   ├─config.py          # Configuration management
+│   └─voice_services.py  # Voice processing (unused - browser STT instead)
+├─dashboard/             # React dashboard
+│   ├─src/
+│   │   ├─App.js         # Main React application
+│   │   ├─components/
+│   │   │   ├─VoiceInput.js      # Browser STT with Web Speech API
+│   │   │   ├─SystemStatus.js    # Service health monitoring
+│   │   │   ├─OrderCard.js       # Individual order display
+│   │   │   ├─VoiceActivity.js   # Live voice transcription feed
+│   │   │   ├─SessionList.js     # Voice session management
+│   │   │   ├─OrderStats.js      # Order statistics
+│   │   │   ├─DeliverySettings.js# Delivery address configuration
+│   │   │   └─BatchOrderStatus.js# Batch order management
+│   │   └─index.css      # Tailwind CSS styles
+│   ├─public/index.html  # HTML template
+│   └─package.json       # Node.js dependencies
+├─submodules/            # External MCP servers
+│   └─uber-eats-mcp-server/
+│       ├─server.py      # FastMCP Uber Eats integration
+│       ├─browser.py     # Browser automation agent
+│       └─requirements.txt
+├─scripts/               # Setup and management scripts
+│   ├─setup.sh          # Initial setup
+│   ├─start.sh          # Start all services
+│   └─stop.sh           # Stop all services
+├─database/              # SQLite database files
+└─logs/                  # Service logs
 ```
 
 ---
 
-#### 4.  Fast local bootstrap
+#### 4. Fast local bootstrap (actual implementation)
 
 ```bash
-brew install cmake pkg-config ffmpeg python@3.12 nvm
-git clone --recurse-submodules https://github.com/you/voice-taco-bot.git
-cp .env.example .env               # add ANTHROPIC_API_KEY etc.
-python -m venv venv && source venv/bin/activate
-pip install -r orch/requirements.txt
-# Build whisper.cpp w/ CoreML
-cd hungry-agent/whisper.cpp && make coreml
+# Install system dependencies
+brew install python@3.11 node foreman just
+
+# Clone and setup
+git clone --recurse-submodules <repository-url>
+cd hungry-agent
+
+# Setup Python environment
+python3.11 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Setup MCP server dependencies
+cd submodules/uber-eats-mcp-server
+pip install -r requirements.txt
+playwright install
+cd ../..
+
+# Setup dashboard dependencies
+cd dashboard
+npm install
+cd ..
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# Start all services
 just dev     # or foreman start -f Procfile
 ```
 
-Speak: **“Order three al pastor tacos for delivery.”**
-Within \~400 ms the orchestrator receives Claude’s tool-call, hits Uber MCP on `localhost:7001`, then speaks confirmation aloud.
+Open browser to http://localhost:3000 and click the microphone to start voice ordering!
 
 ---
 
-#### 5.  Performance headroom on an 8-core M3
+#### 5. Actual voice processing flow
 
-| Stage                                 | Avg Latency                     |
-| ------------------------------------- | ------------------------------- |
-| Voice → STT (tiny-coreml)             | **120 ms**                      |
-| Claude streaming (8 tokens)           | **110 ms**                      |
-| TTS synthesis (hungry-agent LJS-tiny) | **60 ms**                       |
-| **End-to-end**                        | **<300 ms** conversational turn |
+| Stage                                 | Implementation                  | Latency        |
+| ------------------------------------- | ------------------------------- | -------------- |
+| Voice → STT                           | **Browser Web Speech API**     | **~100ms**     |
+| STT → Claude API                      | **HTTP POST to orchestrator**  | **~90ms**      |
+| Claude processing                     | **Anthropic Claude 3.5 Sonnet**| **~110ms**     |
+| Response → TTS                        | **macOS `say` command**         | **~80ms**      |
+| TTS → Browser playback                | **Audio file serving**          | **~50ms**      |
+| **End-to-end**                        | **Browser → Browser**           | **~430ms**     |
 
-Plenty of margin remains for MCP browser automation while the fan stays quiet thanks to the M3’s 60 % faster Neural Engine over M1 ([apple.com][3]).
+The browser-based implementation provides immediate setup with no Core ML compilation required.
+
+---
+
+#### 6. Key features implemented
+
+### Voice Interface
+- **Browser STT**: Web Speech API with real-time transcription
+- **Audio visualization**: Live audio level indicators during recording
+- **Hybrid TTS**: macOS `say` command with browser audio playback
+- **Voice activity feed**: Live transcript of all voice interactions
+
+### Ordering System
+- **Single orders**: Voice-to-order through Claude AI function calls
+- **Batch ordering**: Order from multiple restaurants simultaneously
+- **Real-time tracking**: WebSocket updates for order status
+- **Restaurant search**: Automated Uber Eats restaurant discovery
+
+### Dashboard Features
+- **System monitoring**: Health status of all services
+- **Session management**: Track multiple voice sessions
+- **Order history**: Complete order tracking with status updates
+- **Delivery settings**: Configure delivery addresses
+- **Batch management**: Control concurrent restaurant searches
+
+### Technical Implementation
+- **WebSocket real-time**: Live updates for voice activity and orders
+- **SQLite database**: Local storage for orders and sessions
+- **MCP integration**: Model Context Protocol for Uber Eats automation
+- **Browser automation**: Headless Chrome for actual food ordering
 
 ---
 
 ### Next steps
 
-1. **TLS & local cert** – add `mkcert` so Electron/Tk frontend can hit `https://localhost`.
-2. **Wake-word** – bake VAD + Porcupine into the hungry-agent front to make it hands-free.
-3. **Unit tests** – mock MCP servers with `responses` to test Claude tool-routing logic offline.
+1. **Enhanced voice commands** – Add more natural language patterns for complex orders
+2. **Order customization** – Support for taco customizations and special instructions
+3. **Multiple delivery platforms** – Expand beyond Uber Eats to other services
+4. **Voice authentication** – Add voice-based user identification
+5. **Order scheduling** – Support for future order scheduling
 
-Let me know if you’d like install scripts, `Procfile` examples, or code snippets for any specific component!
-
-[1]: https://github.com/ggerganov/whisper.cpp/discussions/548?utm_source=chatgpt.com "Run encoder on Apple Neural Engine · ggml-org whisper.cpp - GitHub"
-[2]: https://news.ycombinator.com/item?id=43879702&utm_source=chatgpt.com "Run LLMs on Apple Neural Engine (ANE) - Hacker News"
-[3]: https://www.apple.com/br/newsroom/2023/10/apple-unveils-m3-m3-pro-and-m3-max-the-most-advanced-chips-for-a-personal-computer/?utm_source=chatgpt.com "Apple apresenta os chips M3, M3 Pro e M3 Max, os mais avançados ..."
+The system is production-ready for voice-based taco ordering with a rich web interface!

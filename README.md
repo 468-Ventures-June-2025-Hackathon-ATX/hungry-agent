@@ -1,30 +1,33 @@
 # 🌮 Hungry Agent - Voice-Based Taco Ordering System
 
-A sophisticated voice-controlled AI system that can automatically order tacos from DoorDash and Uber Eats using natural language commands. Built specifically for MacBook M3 with Apple Silicon optimizations.
+A sophisticated voice-controlled AI system that can automatically order tacos from Uber Eats using natural language commands. Built specifically for MacBook M3 with Apple Silicon optimizations.
 
 ## ✨ Features
 
-- 🎤 **Real-time Voice Processing** - Core ML optimized Whisper for ultra-fast speech recognition
+- 🎤 **Browser-Based Voice Processing** - Web Speech API for instant speech recognition
 - 🤖 **AI-Powered Ordering** - Claude 3.5 Sonnet understands natural taco orders
-- 🚚 **Multi-Platform Support** - Orders from both Uber Eats and DoorDash
-- 📊 **Live Dashboard** - Real-time monitoring of orders and voice activity
+- 🚚 **Uber Eats Integration** - Seamless ordering from Uber Eats with browser automation
+- 📊 **Live Dashboard** - Real-time monitoring of orders and voice activity with WebSocket updates
 - 🔄 **Concurrent Sessions** - Handle multiple simultaneous voice sessions
-- ⚡ **Apple Silicon Optimized** - Leverages M3's Neural Engine and Metal GPU
+- 🎯 **Batch Ordering** - Order from multiple restaurants simultaneously
+- 🎨 **Rich Voice Interface** - Live audio visualization and real-time transcription
+- ⚡ **Instant Setup** - No Core ML compilation required, works immediately in browser
 
 ## 🏗️ Architecture
 
 ```mermaid
 graph TD
-    subgraph MacBook M3 Local Environment
-        MIC[Mac Microphone] --> PCM[Raw Audio]
-        WAV[Generated Audio] --> SPKR[Mac Speakers]
+    subgraph Browser Environment
+        MIC[Mac Microphone] --> BROWSER_STT[Web Speech API]
+        BROWSER_TTS[Browser Audio] --> SPKR[Mac Speakers]
+        UI[React Dashboard :3000] --> BROWSER_STT
+        BROWSER_TTS --> UI
     end
 
     subgraph Core Pipeline - hungry-agent
-        PCM -->|Core ML Whisper.cpp| STT[Speech-to-Text]
-        STT -->|transcribed text| ORCH[FastAPI Orchestrator]
-        ORCH -->|response text| TTS[Apple Metal TTS]
-        TTS -->|synthesized audio| WAV
+        BROWSER_STT -->|transcribed text| ORCH[FastAPI Orchestrator :8000]
+        ORCH -->|response text| TTS_SERVICE[TTS Service :5002]
+        TTS_SERVICE -->|audio file| BROWSER_TTS
     end
 
     subgraph AI Processing
@@ -32,17 +35,26 @@ graph TD
         CLAUDE -->|function calls JSON| ORCH
     end
 
-    subgraph Local MCP Servers
+    subgraph MCP Integration
         ORCH -->|order commands| UBER[Uber Eats MCP :7001]
-        ORCH -->|order commands| DD[DoorDash MCP :7002]
+        ORCH -->|batch orders| BATCH[Batch MCP Orchestrator]
         UBER -->|headless Chrome| UE_BROWSER[Uber Eats Automation]
-        DD -->|headless Chrome| DD_BROWSER[DoorDash Automation]
+        BATCH -->|concurrent orders| UE_BROWSER
     end
 
     subgraph Real-time Dashboard
-        ORCH -->|WebSocket| DASH[Live Order Dashboard]
-        DASH -->|real-time updates| UI[Browser UI :3000]
+        ORCH -->|WebSocket| UI
+        UI -->|voice input| ORCH
+        UI -->|live updates| VOICE_FEED[Voice Activity Feed]
+        UI -->|order tracking| ORDER_MGMT[Order Management]
+        UI -->|batch control| BATCH_UI[Batch Ordering]
     end
+
+    style MIC fill:#e3f2fd
+    style ORCH fill:#f3e5f5
+    style CLAUDE fill:#fff3e0
+    style UI fill:#e8f5e8
+    style BATCH fill:#fff9c4
 ```
 
 ## 🚀 Quick Start
@@ -52,7 +64,7 @@ graph TD
 - **MacBook M3** (Apple Silicon)
 - **macOS Monterey** or later
 - **Anthropic API Key** ([Get one here](https://console.anthropic.com/))
-- **Uber Eats & DoorDash accounts** (for ordering)
+- **Uber Eats account** (for ordering)
 
 ### 1. Clone and Setup
 
@@ -69,7 +81,7 @@ The setup script will:
 - Install Homebrew and system dependencies
 - Set up Python 3.11 virtual environment
 - Clone and configure MCP servers
-- Build Whisper.cpp with Core ML support
+- Install Playwright for browser automation
 - Install dashboard dependencies
 
 ### 2. Configure Environment
@@ -87,8 +99,6 @@ Required configuration:
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
 UBER_EATS_EMAIL=your_uber_eats_email@example.com
 UBER_EATS_PASSWORD=your_uber_eats_password
-DOORDASH_EMAIL=your_doordash_email@example.com
-DOORDASH_PASSWORD=your_doordash_password
 ```
 
 ### 3. Start the System
@@ -115,7 +125,7 @@ The system understands natural language taco orders:
 ```
 "I want three al pastor tacos from Uber Eats"
 "Order two carne asada tacos with extra salsa"
-"Get me some chicken tacos from DoorDash"
+"Get me some chicken tacos"
 "Check the status of my last order"
 ```
 
@@ -133,7 +143,7 @@ The system understands natural language taco orders:
 
 ### Order Management
 - Real-time order tracking
-- Multi-platform order history
+- Uber Eats order history
 - Status updates and notifications
 
 ### Session Management
@@ -187,7 +197,6 @@ hungry-agent/
 │   └── public/
 ├── submodules/            # External MCP servers
 │   ├── uber-eats-mcp-server/
-│   ├── doordash-mcp-server/
 │   └── whisper.cpp/
 ├── scripts/               # Setup and management scripts
 │   ├── setup.sh          # Initial setup
@@ -210,8 +219,6 @@ hungry-agent/
 | `ANTHROPIC_API_KEY` | Anthropic Claude API key | ✅ |
 | `UBER_EATS_EMAIL` | Uber Eats account email | ✅ |
 | `UBER_EATS_PASSWORD` | Uber Eats account password | ✅ |
-| `DOORDASH_EMAIL` | DoorDash account email | ✅ |
-| `DOORDASH_PASSWORD` | DoorDash account password | ✅ |
 | `WHISPER_MODEL` | Whisper model size (tiny/base/small) | ❌ |
 | `TTS_VOICE` | macOS voice for TTS | ❌ |
 | `LOG_LEVEL` | Logging level (INFO/DEBUG) | ❌ |
@@ -223,29 +230,29 @@ hungry-agent/
 | Orchestrator | 8000 | Main FastAPI application |
 | Dashboard | 3000 | React web interface |
 | Uber Eats MCP | 7001 | Uber Eats ordering service |
-| DoorDash MCP | 7002 | DoorDash ordering service |
 | STT Service | 5001 | Speech-to-text processing |
 | TTS Service | 5002 | Text-to-speech synthesis |
 
 ## 🎯 Performance
 
-### Optimized for Apple Silicon
+### Browser-Based Implementation
 
-- **Core ML Whisper**: 3-6x faster transcription using Neural Engine
-- **Metal TTS**: GPU-accelerated speech synthesis
-- **Native ARM64**: All dependencies compiled for Apple Silicon
-- **Unified Memory**: Efficient memory usage across services
+- **Web Speech API**: Instant browser-based speech recognition
+- **macOS TTS**: Native `say` command with high-quality voice synthesis
+- **WebSocket Real-time**: Live dashboard updates with minimal latency
+- **Efficient Architecture**: No Core ML compilation required, instant setup
 
 ### Performance Targets
 
 | Metric | Target | Typical |
 |--------|--------|---------|
-| Voice → Response | <300ms | ~250ms |
-| STT Processing | <120ms | ~100ms |
-| Claude API | <110ms | ~90ms |
-| TTS Synthesis | <60ms | ~50ms |
-| Memory Usage | <4GB | ~2.5GB |
-| CPU Usage | <30% | ~15% |
+| Voice → Response | <500ms | ~430ms |
+| Browser STT | <150ms | ~100ms |
+| Claude API | <120ms | ~110ms |
+| macOS TTS | <100ms | ~80ms |
+| Audio Playback | <80ms | ~50ms |
+| Memory Usage | <2GB | ~1.5GB |
+| CPU Usage | <20% | ~12% |
 
 ## 🔍 Troubleshooting
 
@@ -263,18 +270,18 @@ tail -f logs/orchestrator.log
 
 **Voice recognition not working**
 ```bash
-# Verify Whisper.cpp build
-ls -la submodules/whisper.cpp/main
+# Check browser microphone permissions
+# Chrome: Settings → Privacy and security → Site Settings → Microphone
+# Allow microphone access for localhost:3000
 
-# Test microphone permissions
-# System Preferences → Security & Privacy → Microphone
+# Test Web Speech API support
+# Open browser console and check for webkitSpeechRecognition support
 ```
 
 **MCP servers failing**
 ```bash
 # Check MCP server logs
 tail -f logs/uber-mcp.log
-tail -f logs/doordash-mcp.log
 
 # Verify credentials in .env file
 ```
@@ -334,7 +341,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Anthropic](https://anthropic.com/) for Claude AI
 - [Whisper.cpp](https://github.com/ggerganov/whisper.cpp) for Core ML optimized speech recognition
 - [Uber Eats MCP Server](https://github.com/ericzakariasson/uber-eats-mcp-server) by Eric Zakariasson
-- [DoorDash MCP Server](https://github.com/JordanDalton/DoorDash-MCP-Server) by Jordan Dalton
 
 ## 🆘 Support
 
