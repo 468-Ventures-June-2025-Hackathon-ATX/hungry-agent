@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+      "uber_eats": {
+          "command": "uv",
+          "args": [
+              "--directory",
+              "/Users/ericzakariasson/dev/uber-eats-mcp-server",
+              "run",
+              "server.py"
+          ]
+      }
+  }
+}
