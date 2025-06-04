@@ -85,19 +85,8 @@ class TacoSearchMCPClient:
             env = os.environ.copy()
             env['PYTHONPATH'] = os.path.join(os.getcwd(), 'venv/lib/python3.13/site-packages')
             
-            # Pass ANTHROPIC_API_KEY from main config
-            from .config import settings
-            if hasattr(settings, 'anthropic_api_key') and settings.anthropic_api_key:
-                env['ANTHROPIC_API_KEY'] = settings.anthropic_api_key
-                print(f"🔑 ANTHROPIC_API_KEY passed to taco search MCP server (length: {len(settings.anthropic_api_key)})")
-            else:
-                # Try to get from environment directly
-                api_key = os.environ.get('ANTHROPIC_API_KEY')
-                if api_key:
-                    env['ANTHROPIC_API_KEY'] = api_key
-                    print(f"🔑 ANTHROPIC_API_KEY found in environment (length: {len(api_key)})")
-                else:
-                    print("⚠️  ANTHROPIC_API_KEY not found in settings or environment - intelligent search will use fallback")
+            # No API key needed for simplified taco search server
+            print("🚀 Starting simplified taco search MCP server (no API key required)")
             
             # Start the taco search MCP server as a subprocess
             self.process = await asyncio.create_subprocess_exec(
@@ -354,11 +343,11 @@ Status: Using fallback recommendations (MCP server unavailable)"""
             return await fallback_func(*args, **kwargs)
 
     async def _search_tacos_mcp(self, query: str, limit: int = 10, session_id: str = "") -> MCPResponse:
-        """Internal method to call MCP search_tacos"""
+        """Internal method to call MCP search_restaurants"""
         response = await self.send_mcp_request(
             "tools/call",
             {
-                "name": "search_tacos",
+                "name": "search_restaurants",
                 "arguments": {
                     "query": query,
                     "limit": limit
@@ -453,7 +442,7 @@ Status: Using fallback recommendations (MCP server unavailable)"""
             response = await self.send_mcp_request(
                 "tools/call",
                 {
-                    "name": "get_top_rated_tacos",
+                    "name": "get_top_rated_restaurants",
                     "arguments": {
                         "limit": limit
                     }
@@ -496,7 +485,7 @@ Status: Using fallback recommendations (MCP server unavailable)"""
             response = await self.send_mcp_request(
                 "tools/call",
                 {
-                    "name": "search_by_area",
+                    "name": "get_restaurants_by_area",
                     "arguments": {
                         "area": area,
                         "limit": limit
@@ -534,51 +523,6 @@ Status: Using fallback recommendations (MCP server unavailable)"""
                 session_id=session_id
             )
     
-    async def intelligent_search(self, query: str, limit: int = 10, session_id: str = "") -> MCPResponse:
-        """Advanced AI-powered search using Claude to analyze the entire database"""
-        
-        try:
-            response = await self.send_mcp_request(
-                "tools/call",
-                {
-                    "name": "intelligent_search",
-                    "arguments": {
-                        "query": query,
-                        "limit": limit
-                    }
-                }
-            )
-            
-            if "result" in response:
-                result_text = response["result"]
-                
-                return MCPResponse(
-                    success=True,
-                    data={
-                        "message": result_text,
-                        "query": query,
-                        "status": "intelligent_search_completed",
-                        "source": "claude_analysis"
-                    },
-                    platform=Platform.UBER_EATS,
-                    session_id=session_id
-                )
-            else:
-                error_msg = response.get("error", "Unknown error from taco search MCP server")
-                return MCPResponse(
-                    success=False,
-                    error=error_msg,
-                    platform=Platform.UBER_EATS,
-                    session_id=session_id
-                )
-                
-        except Exception as e:
-            return MCPResponse(
-                success=False,
-                error=f"Error with intelligent search: {str(e)}",
-                platform=Platform.UBER_EATS,
-                session_id=session_id
-            )
     
     async def health_check(self) -> bool:
         """Check if taco search MCP server is healthy"""
