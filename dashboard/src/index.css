@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+  }
+  
+  .card-header {
+    @apply flex items-center justify-between mb-4;
+  }
+  
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .badge-success {
+    @apply bg-success-100 text-success-800;
+  }
+  
+  .badge-warning {
+    @apply bg-warning-100 text-warning-800;
+  }
+  
+  .badge-danger {
+    @apply bg-danger-100 text-danger-800;
+  }
+  
+  .badge-primary {
+    @apply bg-primary-100 text-primary-800;
+  }
+  
+  .btn {
+    @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200;
+  }
+  
+  .btn-primary {
+    @apply btn text-white bg-primary-600 hover:bg-primary-700 focus:ring-primary-500;
+  }
+  
+  .btn-secondary {
+    @apply btn text-gray-700 bg-white border-gray-300 hover:bg-gray-50 focus:ring-primary-500;
+  }
+  
+  .btn-success {
+    @apply btn text-white bg-success-600 hover:bg-success-700 focus:ring-success-500;
+  }
+  
+  .btn-danger {
+    @apply btn text-white bg-danger-600 hover:bg-danger-700 focus:ring-danger-500;
+  }
+  
+  .status-indicator {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+  
+  .status-online {
+    @apply status-indicator bg-success-500;
+  }
+  
+  .status-offline {
+    @apply status-indicator bg-gray-400;
+  }
+  
+  .status-error {
+    @apply status-indicator bg-danger-500;
+  }
+  
+  .status-warning {
+    @apply status-indicator bg-warning-500;
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Custom animations */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.33);
+  }
+  40%, 50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.33);
+  }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.25s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+
+/* Voice activity indicator */
+.voice-activity {
+  position: relative;
+}
+
+.voice-activity::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.3);
+  transform: translate(-50%, -50%);
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* Order status transitions */
+.order-card {
+  transition: all 0.3s ease;
+}
+
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading states */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Real-time update flash */
+.flash-update {
+  animation: flash 0.5s ease-in-out;
+}
+
+@keyframes flash {
+  0%, 100% {
+    background-color: transparent;
+  }
+  50% {
+    background-color: rgba(34, 197, 94, 0.1);
+  }
+}
+
+/* Platform-specific colors */
+.platform-uber {
+  @apply border-l-4 border-l-black;
+}
+
+.platform-doordash {
+  @apply border-l-4 border-l-red-500;
+}
+
+/* Voice waveform animation */
+.voice-waveform {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.voice-bar {
+  width: 3px;
+  background: #22c55e;
+  border-radius: 2px;
+  animation: voice-wave 1.2s ease-in-out infinite;
+}
+
+.voice-bar:nth-child(1) { animation-delay: 0s; height: 10px; }
+.voice-bar:nth-child(2) { animation-delay: 0.1s; height: 15px; }
+.voice-bar:nth-child(3) { animation-delay: 0.2s; height: 20px; }
+.voice-bar:nth-child(4) { animation-delay: 0.3s; height: 15px; }
+.voice-bar:nth-child(5) { animation-delay: 0.4s; height: 10px; }
+
+@keyframes voice-wave {
+  0%, 100% {
+    transform: scaleY(0.3);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
