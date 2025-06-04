@@ -46,12 +46,29 @@ class RealUberEatsMCPClient:
                 env=env
             )
             
+            # Start a task to monitor stderr for debugging
+            asyncio.create_task(self._monitor_stderr())
+            
             # Wait a moment for the server to initialize
             await asyncio.sleep(3)
             print("🚀 Uber Eats MCP server started")
             
             # Initialize the MCP connection
             await self._initialize_mcp_connection()
+    
+    async def _monitor_stderr(self):
+        """Monitor stderr output from the MCP server for debugging"""
+        try:
+            while self.process and self.process.returncode is None:
+                stderr_line = await self.process.stderr.readline()
+                if stderr_line:
+                    stderr_text = stderr_line.decode().strip()
+                    if stderr_text:
+                        print(f"🔴 MCP Server STDERR: {stderr_text}")
+                else:
+                    break
+        except Exception as e:
+            print(f"Error monitoring stderr: {e}")
     
     async def _initialize_mcp_connection(self):
         """Initialize the MCP connection with proper handshake"""
@@ -97,14 +114,8 @@ class RealUberEatsMCPClient:
         if self.process is None or self.process.returncode is not None:
             await self.start_mcp_server()
         
-        # Additional check for transport state
-        try:
-            if self.process.stdin.is_closing():
-                print("Transport is closing, restarting MCP server...")
-                await self.start_mcp_server()
-        except:
-            print("Transport check failed, restarting MCP server...")
-            await self.start_mcp_server()
+        # Skip transport state checking during active operations
+        # The browser automation can take a long time and we don't want to restart mid-operation
         
         # Create JSON-RPC request for FastMCP
         request = {
@@ -122,11 +133,11 @@ class RealUberEatsMCPClient:
             await self.process.stdin.drain()
             
             # Read response with timeout, filtering out non-JSON lines
-            max_attempts = 10
+            max_attempts = 100  # Much higher for complex browser operations
             for attempt in range(max_attempts):
                 response_line = await asyncio.wait_for(
                     self.process.stdout.readline(), 
-                    timeout=30.0  # Increased timeout for browser operations
+                    timeout=300.0  # 5 minute timeout for complex browser operations
                 )
                 
                 if response_line:
@@ -157,17 +168,18 @@ class RealUberEatsMCPClient:
         except Exception as e:
             return {"error": f"MCP communication error: {str(e)}"}
     
-    async def search_restaurants(self, search_term: str, session_id: str = "") -> MCPResponse:
+    async def search_restaurants(self, search_term: str, session_id: str = "", delivery_address: str = "809 Bouldin Ave, Austin, TX 78704") -> MCPResponse:
         """Start a restaurant search using the real MCP server"""
         
         try:
-            # Call the find_menu_options tool
+            # Call the find_menu_options tool with both search term and delivery address
             response = await self.send_mcp_request(
                 "tools/call",
                 {
                     "name": "find_menu_options",
                     "arguments": {
-                        "search_term": search_term
+                        "search_term": search_term,
+                        "delivery_address": delivery_address
                     }
                 }
             )

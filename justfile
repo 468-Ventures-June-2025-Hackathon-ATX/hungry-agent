@@ -28,11 +28,9 @@ clone-mcp:
     @echo "📥 Cloning MCP server repositories..."
     mkdir -p submodules
     git clone https://github.com/ericzakariasson/uber-eats-mcp-server.git submodules/uber-eats-mcp-server
-    git clone https://github.com/JordanDalton/DoorDash-MCP-Server.git submodules/doordash-mcp-server
     @echo "📦 Installing MCP server dependencies..."
     cd submodules/uber-eats-mcp-server && pip install -r requirements.txt && playwright install
-    cd submodules/doordash-mcp-server && npm install && npm run build
-    @echo "✅ MCP servers ready"
+    @echo "✅ MCP server ready"
 
 # Build Whisper.cpp with Core ML support
 build-whisper:
@@ -91,7 +89,6 @@ health:
     curl -s http://localhost:8000/health || echo "Orchestrator not running"
     curl -s http://localhost:3000 || echo "Dashboard not running"
     curl -s http://localhost:7001/health || echo "Uber MCP not running"
-    curl -s http://localhost:7002/health || echo "DoorDash MCP not running"
 
 # View logs
 logs:
@@ -101,4 +98,4 @@ logs:
 # Full setup from scratch
 bootstrap: setup install clone-mcp build-whisper
     @echo "🎉 Bootstrap complete! Copy .env.example to .env and add your API keys"
-    @echo "🚀 Then run 'just dev' to start all services"
+    @echo "� Then run 'just dev' to start all services"
