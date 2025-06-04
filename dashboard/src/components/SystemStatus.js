@@ -17,9 +17,14 @@ const SystemStatus = ({ status, connected }) => {
       description: 'Main coordination service'
     },
     {
+      name: 'Taco Search MCP',
+      key: 'taco_search_mcp',
+      description: 'Fast restaurant search database'
+    },
+    {
       name: 'Uber Eats MCP',
       key: 'uber_eats_mcp',
-      description: 'Direct Uber Eats ordering'
+      description: 'Order fulfillment browser automation'
     },
     {
       name: 'Batch Ordering',

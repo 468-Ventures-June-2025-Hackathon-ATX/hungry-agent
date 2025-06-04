@@ -185,7 +185,7 @@ async def get_restaurant_details(restaurant_name: str, context: Context) -> str:
         return f"Error getting restaurant details: {str(e)}"
 
 @mcp.tool()
-async def get_top_rated_tacos(limit: int = 5, context: Context) -> str:
+async def get_top_rated_tacos(context: Context, limit: int = 5) -> str:
     """Get the top-rated taco restaurants in Austin.
     
     Args:
@@ -235,7 +235,7 @@ async def get_top_rated_tacos(limit: int = 5, context: Context) -> str:
         return f"Error getting top-rated tacos: {str(e)}"
 
 @mcp.tool()
-async def search_by_area(area: str, limit: int = 8, context: Context) -> str:
+async def search_by_area(area: str, context: Context, limit: int = 8) -> str:
     """Search for taco restaurants in a specific Austin area or neighborhood.
     
     Args:

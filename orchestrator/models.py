@@ -187,6 +187,7 @@ class SystemStatus(BaseModel):
     stt_service: bool = False
     tts_service: bool = False
     uber_eats_mcp: bool = False
+    taco_search_mcp: bool = False
     batch_ordering: bool = False
     dashboard: bool = False
     active_sessions: int = 0

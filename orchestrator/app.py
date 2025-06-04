@@ -134,6 +134,9 @@ async def health_check():
     uber_eats_mcp_status = True  # We have real Uber Eats MCP server working
     batch_ordering_status = True  # Batch ordering is always available
     
+    # Check fast taco search MCP service
+    taco_search_mcp_status = await taco_search_client.health_check()
+    
     # STT is working via browser Web Speech API (no separate service needed)
     stt_status = True  # Browser-based STT is working
     
@@ -160,6 +163,7 @@ async def health_check():
         stt_service=stt_status,
         tts_service=tts_status,
         uber_eats_mcp=uber_eats_mcp_status,
+        taco_search_mcp=taco_search_mcp_status,
         batch_ordering=batch_ordering_status,
         dashboard=dashboard_status,
         active_sessions=len(active_sessions),
