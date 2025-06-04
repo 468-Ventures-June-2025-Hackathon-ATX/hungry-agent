@@ -6,12 +6,14 @@ A sophisticated voice-controlled AI system that can automatically order tacos fr
 
 - 🎤 **Browser-Based Voice Processing** - Web Speech API for instant speech recognition
 - 🤖 **AI-Powered Ordering** - Claude 3.5 Sonnet understands natural taco orders
+- 🔍 **Lightning-Fast Taco Search** - Anthropic-powered semantic search through Austin taco database
 - 🚚 **Uber Eats Integration** - Seamless ordering from Uber Eats with browser automation
 - 📊 **Live Dashboard** - Real-time monitoring of orders and voice activity with WebSocket updates
 - 🔄 **Concurrent Sessions** - Handle multiple simultaneous voice sessions
 - 🎯 **Batch Ordering** - Order from multiple restaurants simultaneously
 - 🎨 **Rich Voice Interface** - Live audio visualization and real-time transcription
 - ⚡ **Instant Setup** - No Core ML compilation required, works immediately in browser
+- 🧠 **Intelligent Restaurant Discovery** - Claude analyzes reviews and menus for perfect matches
 
 ## 🏗️ Architecture
 
@@ -35,8 +37,10 @@ graph TD
         CLAUDE -->|function calls JSON| ORCH
     end
 
-    subgraph MCP Integration
-        ORCH -->|order commands| UBER[Uber Eats MCP :7001]
+    subgraph MCP Integration - Two-Stage Architecture
+        ORCH -->|search queries| TACO_SEARCH[Fast Taco Search MCP]
+        TACO_SEARCH -->|SQLite + Claude AI| TACO_DB[Austin Taco Database]
+        ORCH -->|order fulfillment| UBER[Uber Eats Fulfillment MCP :7001]
         ORCH -->|batch orders| BATCH[Batch MCP Orchestrator]
         UBER -->|headless Chrome| UE_BROWSER[Uber Eats Automation]
         BATCH -->|concurrent orders| UE_BROWSER
@@ -54,6 +58,7 @@ graph TD
     style ORCH fill:#f3e5f5
     style CLAUDE fill:#fff3e0
     style UI fill:#e8f5e8
+    style TACO_SEARCH fill:#e8f5e8
     style BATCH fill:#fff9c4
 ```
 
@@ -118,6 +123,45 @@ Open your browser to:
 - **API**: http://localhost:8000
 - **API Docs**: http://localhost:8000/docs
 
+## 🔧 MCP Architecture - Two-Stage System
+
+### Fast Taco Search MCP Server
+**Lightning-fast restaurant discovery powered by Anthropic Claude**
+
+- **SQLite Database**: Pre-compiled Austin taco restaurant data with reviews and ratings
+- **Semantic Search**: Claude analyzes entire database for intelligent matching
+- **Sub-second Response**: Database queries return results in <100ms
+- **Smart Matching**: "steak tacos" matches "carne asada", "beef", "bistec" automatically
+- **Review Analysis**: Claude reads customer reviews to find perfect matches
+
+**Available Search Functions:**
+- `search_tacos()` - General taco restaurant search
+- `intelligent_search()` - AI-powered semantic search with review analysis
+- `get_restaurant_details()` - Detailed info including hours, ratings, reviews
+- `get_top_rated_tacos()` - Best-rated restaurants with minimum review threshold
+- `search_by_area()` - Location-based search for Austin neighborhoods
+
+### Uber Eats Fulfillment MCP Server
+**Focused order placement and fulfillment**
+
+- **Browser Automation**: Headless Chrome with Playwright for real ordering
+- **Order Fulfillment**: Takes restaurant + item details from search results
+- **Multi-item Orders**: Place complex orders with multiple items
+- **Real-time Status**: Background processing with progress updates
+- **Error Handling**: Robust retry logic and failure reporting
+
+**Order Functions:**
+- `order_food()` - Place single item orders with direct URLs
+- `place_multiple_items_order()` - Order multiple items from same restaurant
+- Background processing with WebSocket status updates
+
+### Integration Flow
+1. **Voice Input** → Claude processes natural language
+2. **Search Phase** → Fast Taco Search MCP finds restaurants instantly
+3. **Selection** → User chooses from search results
+4. **Order Phase** → Uber Eats MCP fulfills the actual order
+5. **Tracking** → Real-time updates via WebSocket
+
 ## 🎤 Voice Commands
 
 The system understands natural language taco orders:
@@ -126,6 +170,8 @@ The system understands natural language taco orders:
 "I want three al pastor tacos from Uber Eats"
 "Order two carne asada tacos with extra salsa"
 "Get me some chicken tacos"
+"Find the best steak tacos in downtown Austin"
+"Search for spicy beef tacos with good reviews"
 "Check the status of my last order"
 ```
 
@@ -232,27 +278,6 @@ hungry-agent/
 | Uber Eats MCP | 7001 | Uber Eats ordering service |
 | STT Service | 5001 | Speech-to-text processing |
 | TTS Service | 5002 | Text-to-speech synthesis |
-
-## 🎯 Performance
-
-### Browser-Based Implementation
-
-- **Web Speech API**: Instant browser-based speech recognition
-- **macOS TTS**: Native `say` command with high-quality voice synthesis
-- **WebSocket Real-time**: Live dashboard updates with minimal latency
-- **Efficient Architecture**: No Core ML compilation required, instant setup
-
-### Performance Targets
-
-| Metric | Target | Typical |
-|--------|--------|---------|
-| Voice → Response | <500ms | ~430ms |
-| Browser STT | <150ms | ~100ms |
-| Claude API | <120ms | ~110ms |
-| macOS TTS | <100ms | ~80ms |
-| Audio Playback | <80ms | ~50ms |
-| Memory Usage | <2GB | ~1.5GB |
-| CPU Usage | <20% | ~12% |
 
 ## 🔍 Troubleshooting
 

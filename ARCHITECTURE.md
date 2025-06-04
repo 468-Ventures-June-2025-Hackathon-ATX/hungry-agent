@@ -22,8 +22,10 @@ graph TD
         CLAUDE -->|function calls JSON| ORCH
     end
 
-    subgraph MCP Integration
-        ORCH -->|order commands| UBER[Uber Eats MCP :7001]
+    subgraph MCP Integration - Two-Stage Architecture
+        ORCH -->|search queries| TACO_SEARCH[Fast Taco Search MCP]
+        TACO_SEARCH -->|SQLite + Claude AI| TACO_DB[Austin Taco Database]
+        ORCH -->|order fulfillment| UBER[Uber Eats Fulfillment MCP :7001]
         ORCH -->|batch orders| BATCH[Batch MCP Orchestrator]
         UBER -->|headless Chrome| UE_BROWSER[Uber Eats Automation]
         BATCH -->|concurrent orders| UE_BROWSER
@@ -42,6 +44,7 @@ graph TD
     style ORCH fill:#f3e5f5
     style CLAUDE fill:#fff3e0
     style UI fill:#e8f5e8
+    style TACO_SEARCH fill:#e8f5e8
     style BATCH fill:#fff9c4
 ```
 
@@ -60,12 +63,57 @@ graph TD
 
 ---
 
-#### 2. Key design adjustments for browser-based implementation
+#### 2. Two-Stage MCP Architecture
+
+### Fast Taco Search MCP Server
+**Lightning-fast restaurant discovery powered by Anthropic Claude**
+
+| Feature | Implementation | Performance |
+|---------|---------------|-------------|
+| **Database** | Pre-compiled SQLite with Austin taco restaurants | <100ms queries |
+| **AI Search** | Claude 3.5 Sonnet analyzes entire database | Semantic matching |
+| **Smart Matching** | "steak tacos" → "carne asada", "beef", "bistec" | Context-aware |
+| **Review Analysis** | Claude reads customer reviews for relevance | Deep understanding |
+| **Area Search** | Austin neighborhood and street-based filtering | Location-aware |
+
+**Available Functions:**
+- `search_tacos(query, limit)` - General restaurant search
+- `intelligent_search(query, limit)` - AI-powered semantic search with review analysis
+- `get_restaurant_details(name)` - Detailed info including hours, ratings, reviews
+- `get_top_rated_tacos(limit)` - Best-rated restaurants with minimum review threshold
+- `search_by_area(area, limit)` - Location-based search for Austin neighborhoods
+
+### Uber Eats Fulfillment MCP Server
+**Focused order placement and fulfillment**
+
+| Feature | Implementation | Capability |
+|---------|---------------|------------|
+| **Browser Automation** | Headless Chrome with Playwright | Real ordering |
+| **Order Processing** | Background tasks with progress updates | Async fulfillment |
+| **Multi-item Support** | Complex orders with multiple items | Restaurant flexibility |
+| **Error Handling** | Robust retry logic and failure reporting | Reliability |
+| **Status Tracking** | WebSocket updates for real-time progress | Live monitoring |
+
+**Order Functions:**
+- `order_food(restaurant, item, url, quantity, address)` - Single item orders
+- `place_multiple_items_order(restaurant, items, address)` - Multi-item orders
+- Background processing with WebSocket status updates
+
+### Integration Flow
+1. **Voice Input** → Claude processes natural language command
+2. **Search Phase** → Fast Taco Search MCP finds restaurants instantly (<100ms)
+3. **AI Analysis** → Claude analyzes reviews and matches user intent
+4. **User Selection** → Dashboard presents options, user chooses
+5. **Order Phase** → Uber Eats MCP fulfills actual order with browser automation
+6. **Real-time Tracking** → WebSocket updates throughout process
+
+#### 3. Key design adjustments for browser-based implementation
 
 | Aspect                        | Change                                                                                                                                                  | Rationale                                     |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | **Browser-based STT**         | Use Web Speech API (webkitSpeechRecognition) directly in React dashboard instead of Whisper.cpp                                                       | Eliminates need for Core ML setup, works immediately in browser |
 | **Hybrid TTS**                | Separate TTS service using macOS `say` command + browser fallback for audio playback                                                                   | Leverages native macOS TTS quality with web delivery |
+| **Two-stage MCP**             | Separate fast search from slow order fulfillment for optimal user experience                                                                           | Search results in <100ms, orders process in background |
 | **Real-time dashboard**       | React dashboard with WebSocket connections for live voice activity, order tracking, and batch management                                               | Provides rich UI for monitoring and control |
 | **Batch ordering**            | Built-in batch MCP orchestrator for concurrent restaurant searches and ordering                                                                        | Enables ordering from multiple restaurants simultaneously |
 | **Process manager**           | Use **`justfile`** or **`foreman`** (`brew install foreman`) to start all four processes with one command                                              | Light-weight replacement for Docker Compose  |
@@ -73,7 +121,7 @@ graph TD
 
 ---
 
-#### 3. Actual repo layout
+#### 4. Actual repo layout
 
 ```
 hungry-agent/
@@ -123,7 +171,7 @@ hungry-agent/
 
 ---
 
-#### 4. Fast local bootstrap (actual implementation)
+#### 5. Fast local bootstrap (actual implementation)
 
 ```bash
 # Install system dependencies
@@ -161,7 +209,7 @@ Open browser to http://localhost:3000 and click the microphone to start voice or
 
 ---
 
-#### 5. Actual voice processing flow
+#### 6. Actual voice processing flow
 
 | Stage                                 | Implementation                  | Latency        |
 | ------------------------------------- | ------------------------------- | -------------- |
@@ -176,7 +224,7 @@ The browser-based implementation provides immediate setup with no Core ML compil
 
 ---
 
-#### 6. Key features implemented
+#### 7. Key features implemented
 
 ### Voice Interface
 - **Browser STT**: Web Speech API with real-time transcription

@@ -18,6 +18,10 @@ class TacoSearchMCPClient:
     def __init__(self):
         self.process = None
         self.request_id = 1
+        self.request_queue = asyncio.Queue()
+        self.response_futures = {}
+        self.processor_task = None
+        self._lock = asyncio.Lock()
         
     async def start_mcp_server(self):
         """Start the fast taco search MCP server"""
@@ -111,61 +115,78 @@ class TacoSearchMCPClient:
         await self.process.stdin.drain()
     
     async def send_mcp_request(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Send JSON-RPC request to MCP server"""
-        # Always ensure we have a fresh, working process
-        if self.process is None or self.process.returncode is not None:
-            await self.start_mcp_server()
+        """Send JSON-RPC request to MCP server with concurrency protection"""
         
-        # Create JSON-RPC request for FastMCP
-        request = {
-            "jsonrpc": "2.0",
-            "id": self.request_id,
-            "method": method,
-            "params": params
-        }
-        self.request_id += 1
-        
-        try:
-            # Send request
-            request_json = json.dumps(request) + "\n"
-            self.process.stdin.write(request_json.encode())
-            await self.process.stdin.drain()
+        # Use lock to ensure only one request at a time
+        async with self._lock:
+            # Always ensure we have a fresh, working process
+            if self.process is None or self.process.returncode is not None:
+                await self.start_mcp_server()
             
-            # Read response with short timeout (database queries are fast)
-            max_attempts = 10
-            for attempt in range(max_attempts):
-                response_line = await asyncio.wait_for(
-                    self.process.stdout.readline(), 
-                    timeout=5.0  # Short timeout for fast database operations
-                )
+            # Create JSON-RPC request for FastMCP
+            request = {
+                "jsonrpc": "2.0",
+                "id": self.request_id,
+                "method": method,
+                "params": params
+            }
+            request_id = self.request_id
+            self.request_id += 1
+            
+            try:
+                # Send request
+                request_json = json.dumps(request) + "\n"
+                self.process.stdin.write(request_json.encode())
+                await self.process.stdin.drain()
                 
-                if response_line:
-                    response_text = response_line.decode().strip()
-                    print(f"Taco Search MCP Output: {response_text}")  # Debug output
+                # Read response with timeout
+                timeout = 10.0 if method == "tools/call" and params.get("name") == "intelligent_search" else 5.0
+                
+                max_attempts = 15
+                for attempt in range(max_attempts):
+                    response_line = await asyncio.wait_for(
+                        self.process.stdout.readline(), 
+                        timeout=timeout
+                    )
                     
-                    # Skip telemetry and other non-JSON lines
-                    if response_text.startswith("INFO") or response_text.startswith("WARNING") or response_text.startswith("ERROR"):
-                        continue
-                    
-                    if response_text:
-                        try:
-                            response = json.loads(response_text)
-                            return response
-                        except json.JSONDecodeError as e:
-                            # If it's not JSON, continue reading
-                            print(f"Non-JSON line: {response_text}")
+                    if response_line:
+                        response_text = response_line.decode().strip()
+                        
+                        # Skip telemetry and other non-JSON lines
+                        if response_text.startswith("INFO") or response_text.startswith("WARNING") or response_text.startswith("ERROR"):
+                            continue
+                        
+                        if response_text:
+                            try:
+                                response = json.loads(response_text)
+                                
+                                # Check if this response matches our request ID
+                                if "id" in response and response["id"] == request_id:
+                                    print(f"✅ Taco Search MCP Response for ID {request_id}: Success")
+                                    return response
+                                elif "id" in response:
+                                    print(f"⚠️  Received response for different ID: {response['id']}, expected: {request_id}")
+                                    continue
+                                else:
+                                    # Response without ID (notification or error)
+                                    return response
+                                    
+                            except json.JSONDecodeError as e:
+                                print(f"Non-JSON line: {response_text}")
+                                continue
+                        else:
                             continue
                     else:
-                        continue
-                else:
-                    return {"error": "No response from taco search MCP server"}
-            
-            return {"error": "No valid JSON response after multiple attempts"}
+                        return {"error": "No response from taco search MCP server"}
                 
-        except asyncio.TimeoutError:
-            return {"error": "Taco search MCP server timeout"}
-        except Exception as e:
-            return {"error": f"Taco search MCP communication error: {str(e)}"}
+                return {"error": "No valid JSON response after multiple attempts"}
+                    
+            except asyncio.TimeoutError:
+                print(f"❌ Taco search MCP timeout for request ID {request_id}")
+                return {"error": "Taco search MCP server timeout"}
+            except Exception as e:
+                print(f"❌ Taco search MCP error for request ID {request_id}: {str(e)}")
+                return {"error": f"Taco search MCP communication error: {str(e)}"}
     
     async def search_tacos(self, query: str, limit: int = 10, session_id: str = "") -> MCPResponse:
         """Search for taco restaurants using fast database lookup"""
