@@ -9,17 +9,21 @@ import json
 import sys
 import logging
 import os
+import asyncio
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP, Context
 import anthropic
 
-# Configure logging to stderr
+# Configure logging to stderr with more detail for debugging
 logging.basicConfig(
-    level=logging.CRITICAL,
+    level=logging.INFO,  # Changed from CRITICAL to INFO for debugging
     stream=sys.stderr,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
+
+# Create logger for this module
+logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server
 mcp = FastMCP("taco_search")
@@ -87,70 +91,76 @@ def get_full_database_context():
         return []
 
 async def intelligent_search_with_claude(query: str, limit: int = 10) -> str:
-    """Use Claude to intelligently search the entire database"""
+    """Use Claude to intelligently search the entire database with timeout and error handling"""
     
     if not anthropic_client:
-        # Fallback to regular search if Claude not available
+        print("Claude not available, using fallback search")
         return await search_tacos_fallback(query, limit)
     
     try:
-        # Get full database context
-        database_context = get_full_database_context()
+        # Add timeout for database context loading with shorter timeout
+        database_context = await asyncio.wait_for(
+            asyncio.to_thread(get_full_database_context), 
+            timeout=3.0  # Reduced from 5.0 to 3.0 seconds
+        )
         
         if not database_context:
-            return "Error: Could not load restaurant database."
+            print("Database context empty, using fallback")
+            return await search_tacos_fallback(query, limit)
         
-        # Prepare context for Claude
+        # Limit database context size to prevent huge prompts
+        if len(database_context) > 30:  # Reduced from 50 to 30
+            database_context = database_context[:30]  # Only top 30 restaurants
+            
+        # Prepare context for Claude (limit size more aggressively)
         context_json = json.dumps(database_context, indent=2)
+        if len(context_json) > 30000:  # Reduced from 50000 to 30000
+            print("Database context too large, using fallback")
+            return await search_tacos_fallback(query, limit)
         
-        # Create prompt for Claude
-        prompt = f"""You are a taco restaurant expert analyzing a database of Austin, TX taco restaurants. 
+        # Create shorter, more focused prompt for Claude
+        prompt = f"""Find the best {limit} Austin taco restaurants for: "{query}"
 
-DATABASE CONTEXT:
+DATABASE:
 {context_json}
 
-USER QUERY: "{query}"
+Return format:
+RESULTS: [number] found for "{query}"
 
-Please analyze the database and find the best {limit} restaurants that match the user's query. Consider:
-- Restaurant names and specialties
-- Menu items mentioned in reviews
-- Review content and sentiment
-- Ratings and popularity
-- Semantic matching (e.g., "steak tacos" should match "carne asada", "beef", "bistec")
+1. [Name] - [Address] (★[Rating])
+   Match: [Why it matches]
+   Best: [Specialty]
 
-Return your response in this exact format:
-RESULTS: [number] restaurants found for "{query}"
+Keep responses concise and focused."""
 
-1. [Restaurant Name] - [Address] (★[Rating], [Review Count] reviews)
-   Best Match: [Why this restaurant matches the query]
-   Specialty: [Best taco or specialty item]
-
-2. [Restaurant Name] - [Address] (★[Rating], [Review Count] reviews)
-   Best Match: [Why this restaurant matches the query]
-   Specialty: [Best taco or specialty item]
-
-[Continue for all results...]
-
-Focus on semantic understanding and provide clear explanations for why each restaurant matches the query."""
-
-        # Call Claude
-        response = anthropic_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=2000,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+        # Call Claude with shorter timeout
+        async def call_claude():
+            return anthropic_client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=1500,  # Reduced from 2000 to 1500
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+        
+        response = await asyncio.wait_for(
+            asyncio.to_thread(call_claude), 
+            timeout=10.0  # Reduced from 15.0 to 10.0 seconds
         )
         
         # Extract and return Claude's response
         claude_result = response.content[0].text
+        print(f"Claude search successful for query: {query}")
         return claude_result
         
+    except asyncio.TimeoutError:
+        print(f"Claude API timeout for query: {query}, using fallback")
+        return await search_tacos_fallback(query, limit)
     except Exception as e:
-        print(f"Error with Claude intelligent search: {e}")
+        print(f"Error with Claude intelligent search: {e}, using fallback")
         # Fallback to regular search
         return await search_tacos_fallback(query, limit)
 
@@ -413,6 +423,29 @@ async def search_by_area(area: str, context: Context, limit: int = 8) -> str:
             
     except Exception as e:
         return f"Error searching by area: {str(e)}"
+
+@mcp.tool()
+async def health_check(context: Context) -> str:
+    """Simple health check that tests database connectivity without using Anthropic API.
+    
+    Returns:
+        Health status message
+    """
+    try:
+        # Test database connection
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as count FROM taco_restaurants")
+            result = cursor.fetchone()
+            restaurant_count = result[0] if result else 0
+        
+        # Test Anthropic client availability
+        anthropic_status = "available" if anthropic_client else "unavailable"
+        
+        return f"✅ Taco Search MCP Server is healthy! Database: {restaurant_count} restaurants, Anthropic: {anthropic_status}"
+        
+    except Exception as e:
+        return f"❌ Health check failed: {str(e)}"
 
 if __name__ == "__main__":
     mcp.run(transport='stdio')
