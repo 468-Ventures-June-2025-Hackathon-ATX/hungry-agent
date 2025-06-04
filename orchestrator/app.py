@@ -25,6 +25,7 @@ from .claude_client import claude_client
 from .mcp_client import mcp_orchestrator
 from .batch_mcp_client import batch_mcp_orchestrator
 from .batch_models import BatchOrderRequest, PlaceOrderRequest
+from .taco_search_client import taco_search_client
 
 # Create FastAPI app
 app = FastAPI(

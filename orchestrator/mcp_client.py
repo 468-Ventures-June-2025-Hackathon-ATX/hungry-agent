@@ -12,6 +12,7 @@ from datetime import datetime
 from .config import settings
 from .models import MCPRequest, MCPResponse, Platform, OrderItem
 from .real_mcp_client import create_uber_eats_client
+from .taco_search_client import taco_search_client
 
 
 class MCPClient:
@@ -92,17 +93,20 @@ class MCPClient:
         query: str, 
         session_id: str = ""
     ) -> MCPResponse:
-        """Search for restaurants on a platform"""
+        """Search for restaurants on a platform using fast database lookup"""
         
         if platform == Platform.UBER_EATS:
-            # Create a fresh MCP client instance for this request
-            client = create_uber_eats_client()
+            # Use fast taco search database instead of slow browser automation
             try:
-                # Search with hardcoded Austin, TX location
-                result = await client.search_restaurants(query, session_id)
+                result = await taco_search_client.search_tacos(query, limit=10, session_id=session_id)
                 return result
-            finally:
-                await client.close()
+            except Exception as e:
+                return MCPResponse(
+                    success=False,
+                    error=f"Error with fast taco search: {str(e)}",
+                    platform=platform,
+                    session_id=session_id
+                )
         else:
             return MCPResponse(
                 success=False,
