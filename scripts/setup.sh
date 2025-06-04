@@ -79,7 +79,7 @@ setup_python_env() {
 
 # Function to clone and setup MCP servers
 setup_mcp_servers() {
-    echo "🔗 Setting up MCP servers..."
+    echo "🔗 Setting up MCP server..."
     
     # Create submodules directory
     mkdir -p submodules
@@ -90,12 +90,6 @@ setup_mcp_servers() {
         git clone https://github.com/ericzakariasson/uber-eats-mcp-server.git submodules/uber-eats-mcp-server
     fi
     
-    # Clone DoorDash MCP server
-    if [ ! -d "submodules/doordash-mcp-server" ]; then
-        echo "📥 Cloning DoorDash MCP server..."
-        git clone https://github.com/JordanDalton/DoorDash-MCP-Server.git submodules/doordash-mcp-server
-    fi
-    
     # Setup Uber Eats MCP server
     echo "🔧 Setting up Uber Eats MCP server..."
     cd submodules/uber-eats-mcp-server
@@ -104,19 +98,12 @@ setup_mcp_servers() {
     source ../../venv/bin/activate
     pip install -r requirements.txt
     
-    # Install Playwright browsers
+    # Install Playwright browsers for browser automation
     playwright install chromium
     
     cd ../..
     
-    # Setup DoorDash MCP server
-    echo "🔧 Setting up DoorDash MCP server..."
-    cd submodules/doordash-mcp-server
-    npm install
-    npm run build
-    cd ../..
-    
-    echo "✅ MCP servers setup complete"
+    echo "✅ MCP server setup complete"
 }
 
 # Function to build Whisper.cpp with Core ML
@@ -172,9 +159,8 @@ create_env_file() {
         echo "📝 Created .env file from template"
         echo ""
         echo "🔑 IMPORTANT: Please edit .env file and add your API keys:"
-        echo "   - ANTHROPIC_API_KEY (required)"
-        echo "   - UBER_EATS_EMAIL and UBER_EATS_PASSWORD"
-        echo "   - DOORDASH_EMAIL and DOORDASH_PASSWORD"
+        echo "   - ANTHROPIC_API_KEY (required for Claude processing)"
+        echo "   - UBER_EATS_EMAIL and UBER_EATS_PASSWORD (for browser automation)"
         echo ""
     else
         echo "✅ .env file already exists"
@@ -203,11 +189,11 @@ verify_installation() {
         return 1
     fi
     
-    # Check MCP servers
-    if [ -d "submodules/uber-eats-mcp-server" ] && [ -d "submodules/doordash-mcp-server" ]; then
-        echo "✅ MCP servers: OK"
+    # Check MCP server
+    if [ -d "submodules/uber-eats-mcp-server" ]; then
+        echo "✅ MCP server: OK"
     else
-        echo "❌ MCP servers: MISSING"
+        echo "❌ MCP server: MISSING"
         return 1
     fi
     
@@ -267,11 +253,14 @@ main() {
     echo ""
     echo "Next steps:"
     echo "1. Edit .env file with your API keys"
-    echo "2. Run 'source venv/bin/activate' to activate Python environment"
-    echo "3. Run 'just dev' to start all services"
-    echo "4. Open http://localhost:3000 for the dashboard"
+    echo "2. Run './scripts/start.sh' to start all services"
+    echo "3. Open http://localhost:3000 for the voice dashboard"
+    echo "4. Click microphone and say 'Search for tacos'"
     echo ""
-    echo "For more commands, run 'just --list'"
+    echo "Commands:"
+    echo "  ./scripts/start.sh  # Start all services"
+    echo "  ./scripts/stop.sh   # Stop all services gracefully"
+    echo "  curl http://localhost:8000/health  # Check API health"
 }
 
 # Run main function
