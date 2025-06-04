@@ -341,15 +341,14 @@ class TacoSearchMCPClient:
     async def health_check(self) -> bool:
         """Check if taco search MCP server is healthy"""
         try:
-            if self.process is None:
-                return False
+            # Test if we can perform a simple search to verify the service works
+            response = await self.search_tacos("test", limit=1, session_id="health_check")
             
-            # Check if process is still running
-            if self.process.returncode is not None:
-                return False
+            # If we get a successful response, the service is healthy
+            return response.success
             
-            return True
-        except:
+        except Exception as e:
+            print(f"Taco search health check failed: {e}")
             return False
     
     async def close(self):
