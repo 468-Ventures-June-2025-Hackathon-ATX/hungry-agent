@@ -328,6 +328,23 @@ class MCPOrchestrator:
                         session_id=session_id
                     )
             
+            elif function_name == "intelligent_search":
+                # Use fast taco search with Claude intelligence
+                try:
+                    result = await taco_search_client.intelligent_search(
+                        query=parameters.get("query", ""),
+                        limit=parameters.get("limit", 10),
+                        session_id=session_id
+                    )
+                    return result
+                except Exception as e:
+                    return MCPResponse(
+                        success=False,
+                        error=f"Error with intelligent search: {str(e)}",
+                        platform=platform,
+                        session_id=session_id
+                    )
+            
             elif function_name == "get_menu":
                 return await self.client.get_menu(
                     platform=platform,

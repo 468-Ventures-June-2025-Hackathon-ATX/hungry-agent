@@ -30,6 +30,14 @@ class TacoSearchMCPClient:
             env = os.environ.copy()
             env['PYTHONPATH'] = os.path.join(os.getcwd(), 'venv/lib/python3.13/site-packages')
             
+            # Pass ANTHROPIC_API_KEY from main config
+            from .config import settings
+            if hasattr(settings, 'anthropic_api_key') and settings.anthropic_api_key:
+                env['ANTHROPIC_API_KEY'] = settings.anthropic_api_key
+                print("🔑 ANTHROPIC_API_KEY passed to taco search MCP server")
+            else:
+                print("⚠️  ANTHROPIC_API_KEY not found in settings - intelligent search will use fallback")
+            
             # Start the taco search MCP server as a subprocess
             self.process = await asyncio.create_subprocess_exec(
                 sys.executable, "server.py",
@@ -334,6 +342,52 @@ class TacoSearchMCPClient:
             return MCPResponse(
                 success=False,
                 error=f"Error searching by area: {str(e)}",
+                platform=Platform.UBER_EATS,
+                session_id=session_id
+            )
+    
+    async def intelligent_search(self, query: str, limit: int = 10, session_id: str = "") -> MCPResponse:
+        """Advanced AI-powered search using Claude to analyze the entire database"""
+        
+        try:
+            response = await self.send_mcp_request(
+                "tools/call",
+                {
+                    "name": "intelligent_search",
+                    "arguments": {
+                        "query": query,
+                        "limit": limit
+                    }
+                }
+            )
+            
+            if "result" in response:
+                result_text = response["result"]
+                
+                return MCPResponse(
+                    success=True,
+                    data={
+                        "message": result_text,
+                        "query": query,
+                        "status": "intelligent_search_completed",
+                        "source": "claude_analysis"
+                    },
+                    platform=Platform.UBER_EATS,
+                    session_id=session_id
+                )
+            else:
+                error_msg = response.get("error", "Unknown error from taco search MCP server")
+                return MCPResponse(
+                    success=False,
+                    error=error_msg,
+                    platform=Platform.UBER_EATS,
+                    session_id=session_id
+                )
+                
+        except Exception as e:
+            return MCPResponse(
+                success=False,
+                error=f"Error with intelligent search: {str(e)}",
                 platform=Platform.UBER_EATS,
                 session_id=session_id
             )

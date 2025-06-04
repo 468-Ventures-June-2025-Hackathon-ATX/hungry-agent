@@ -134,6 +134,26 @@ Keep it friendly and conversational but concise!"""
                     }
                 },
                 {
+                    "name": "intelligent_search",
+                    "description": "Advanced AI-powered search that analyzes the entire database including reviews for semantic matching (best for complex queries like 'steak tacos', 'spicy beef')",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Natural language search query (e.g., 'best steak tacos', 'spicy beef tacos', 'carne asada')"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of results (default: 10)",
+                                "minimum": 1,
+                                "maximum": 15
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                },
+                {
                     "name": "get_menu",
                     "description": "Get menu items from a specific restaurant on Uber Eats",
                     "input_schema": {
