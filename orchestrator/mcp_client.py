@@ -279,6 +279,55 @@ class MCPOrchestrator:
                     session_id=session_id
                 )
             
+            elif function_name == "get_restaurant_details":
+                # Use fast taco search for restaurant details
+                try:
+                    result = await taco_search_client.get_restaurant_details(
+                        restaurant_name=parameters.get("restaurant_name", ""),
+                        session_id=session_id
+                    )
+                    return result
+                except Exception as e:
+                    return MCPResponse(
+                        success=False,
+                        error=f"Error getting restaurant details: {str(e)}",
+                        platform=platform,
+                        session_id=session_id
+                    )
+            
+            elif function_name == "get_top_rated_tacos":
+                # Use fast taco search for top-rated restaurants
+                try:
+                    result = await taco_search_client.get_top_rated_tacos(
+                        limit=parameters.get("limit", 5),
+                        session_id=session_id
+                    )
+                    return result
+                except Exception as e:
+                    return MCPResponse(
+                        success=False,
+                        error=f"Error getting top-rated tacos: {str(e)}",
+                        platform=platform,
+                        session_id=session_id
+                    )
+            
+            elif function_name == "search_by_area":
+                # Use fast taco search for area-based search
+                try:
+                    result = await taco_search_client.search_by_area(
+                        area=parameters.get("area", ""),
+                        limit=parameters.get("limit", 8),
+                        session_id=session_id
+                    )
+                    return result
+                except Exception as e:
+                    return MCPResponse(
+                        success=False,
+                        error=f"Error searching by area: {str(e)}",
+                        platform=platform,
+                        session_id=session_id
+                    )
+            
             elif function_name == "get_menu":
                 return await self.client.get_menu(
                     platform=platform,
@@ -287,29 +336,103 @@ class MCPOrchestrator:
                     session_id=session_id
                 )
             
-            elif function_name == "place_order":
-                # Convert items to OrderItem objects
-                items_data = parameters.get("items", [])
-                items = []
-                
-                for item_data in items_data:
-                    item = OrderItem(
-                        name=item_data.get("name", ""),
-                        quantity=item_data.get("quantity", 1),
-                        customizations=item_data.get("customizations", []),
-                        notes=item_data.get("notes"),
-                        price=item_data.get("price")
+            elif function_name == "order_food":
+                # Use Uber Eats MCP for order fulfillment
+                try:
+                    # Create a fresh MCP client instance for this order
+                    client = create_uber_eats_client()
+                    try:
+                        # Call the order_food function on Uber Eats MCP
+                        result = await client.send_mcp_request(
+                            "tools/call",
+                            {
+                                "name": "order_food",
+                                "arguments": {
+                                    "restaurant_name": parameters.get("restaurant_name", ""),
+                                    "item_name": parameters.get("item_name", ""),
+                                    "quantity": parameters.get("quantity", 1),
+                                    "item_url": parameters.get("item_url", ""),
+                                    "delivery_address": parameters.get("delivery_address", "809 Bouldin Ave, Austin, TX 78704")
+                                }
+                            }
+                        )
+                        
+                        if "result" in result:
+                            return MCPResponse(
+                                success=True,
+                                data={
+                                    "message": result["result"],
+                                    "restaurant_name": parameters.get("restaurant_name", ""),
+                                    "item_name": parameters.get("item_name", ""),
+                                    "status": "order_started"
+                                },
+                                platform=platform,
+                                session_id=session_id
+                            )
+                        else:
+                            error_msg = result.get("error", "Unknown error from Uber Eats MCP server")
+                            return MCPResponse(
+                                success=False,
+                                error=error_msg,
+                                platform=platform,
+                                session_id=session_id
+                            )
+                    finally:
+                        await client.close()
+                except Exception as e:
+                    return MCPResponse(
+                        success=False,
+                        error=f"Error placing order: {str(e)}",
+                        platform=platform,
+                        session_id=session_id
                     )
-                    items.append(item)
-                
-                return await self.client.place_order(
-                    platform=platform,
-                    restaurant_name=parameters.get("restaurant_name", ""),
-                    items=items,
-                    delivery_address=parameters.get("delivery_address"),
-                    special_instructions=parameters.get("special_instructions"),
-                    session_id=session_id
-                )
+            
+            elif function_name == "place_multiple_items_order":
+                # Use Uber Eats MCP for multi-item order fulfillment
+                try:
+                    client = create_uber_eats_client()
+                    try:
+                        result = await client.send_mcp_request(
+                            "tools/call",
+                            {
+                                "name": "place_multiple_items_order",
+                                "arguments": {
+                                    "restaurant_name": parameters.get("restaurant_name", ""),
+                                    "items": parameters.get("items", []),
+                                    "delivery_address": parameters.get("delivery_address", "809 Bouldin Ave, Austin, TX 78704")
+                                }
+                            }
+                        )
+                        
+                        if "result" in result:
+                            return MCPResponse(
+                                success=True,
+                                data={
+                                    "message": result["result"],
+                                    "restaurant_name": parameters.get("restaurant_name", ""),
+                                    "items": parameters.get("items", []),
+                                    "status": "multi_order_started"
+                                },
+                                platform=platform,
+                                session_id=session_id
+                            )
+                        else:
+                            error_msg = result.get("error", "Unknown error from Uber Eats MCP server")
+                            return MCPResponse(
+                                success=False,
+                                error=error_msg,
+                                platform=platform,
+                                session_id=session_id
+                            )
+                    finally:
+                        await client.close()
+                except Exception as e:
+                    return MCPResponse(
+                        success=False,
+                        error=f"Error placing multi-item order: {str(e)}",
+                        platform=platform,
+                        session_id=session_id
+                    )
             
             elif function_name == "check_order_status":
                 return await self.client.check_order_status(

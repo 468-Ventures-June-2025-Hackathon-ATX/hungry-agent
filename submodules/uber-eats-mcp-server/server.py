@@ -33,84 +33,8 @@ mcp = FastMCP("uber_eats")
 # In-memory storage for search results
 search_results = {}
 
-@mcp.tool()
-async def find_menu_options(search_term: str, context: Context, delivery_address: str = "809 Bouldin Ave, Austin, TX 78704") -> str:
-    """Search Uber Eats for restaurants or food items at a specific delivery address.
-    
-    Args:
-        search_term: Food or restaurant to search for
-        delivery_address: Delivery address (defaults to Austin, TX location)
-    """
-    
-    import urllib.parse
-    import json
-    
-    # Default Austin coordinates for the default address
-    default_location = {
-        "address": "809 Bouldin Ave, Austin, TX 78704",
-        "reference": "local",
-        "latitude": 30.2515255,
-        "longitude": -97.7343454
-    }
-    
-    # Use default location for now (can be enhanced later to geocode custom addresses)
-    location_data = default_location
-    if delivery_address != default_location["address"]:
-        # For now, use default Austin location but update address
-        location_data["address"] = delivery_address
-    
-    # Create the location parameter as JSON then URL encode it
-    location_json = json.dumps(location_data)
-    encoded_location = urllib.parse.quote(location_json)
-    
-    # URL encode the search term
-    encoded_search = urllib.parse.quote(search_term)
-    
-    # Construct the proper Uber Eats search URL using the correct structure
-    direct_url = f"https://www.ubereats.com/search?diningMode=DELIVERY&pl={encoded_location}&query={encoded_search}"
-    
-    # Create comprehensive multi-restaurant search task
-    task = f"""
-1. Go directly to the search results URL: {direct_url}
-2. Wait for the search results page to load completely (look for restaurant cards)
-3. Scan the entire search results page and identify ALL restaurants that appear (aim for top 6-8 restaurants)
-4. For each restaurant card on the search results page, extract:
-   - Restaurant name
-   - Rating (if visible)
-   - Delivery time estimate
-   - Distance or delivery fee (if visible)
-   - Any visible menu items or prices related to "{search_term}"
-5. Now visit the top 5 restaurants individually to get specific taco menu items:
-   - Click on each restaurant
-   - Look for menu items related to "{search_term}"
-   - Get the name, price, and description of 1-2 best taco items from each restaurant
-   - Capture the complete item URLs for ordering (full path like /store/restaurant-name/item-id)
-   - Go back to search results and continue to next restaurant
-6. Consolidate all results into a structured format showing:
-   - Restaurant name, rating, delivery info
-   - Available taco options with names, prices, descriptions
-   - Complete ordering URLs for each item
-7. Format the final response as a comprehensive taco guide for delivery to {delivery_address} with options from multiple restaurants
-"""
-    
-    try:
-        # Run the browser automation and wait for completion
-        result = await run_browser_agent(task=task, on_step=None)
-        
-        # Extract the final result text from browser automation
-        if hasattr(result, 'all_results') and result.all_results:
-            # Get the last result which should be the final output
-            final_result = result.all_results[-1]
-            if hasattr(final_result, 'extracted_content'):
-                content = final_result.extracted_content
-                # Return structured data for Claude to process
-                return f"Successfully found restaurants in {delivery_address}. {content}"
-        
-        # Fallback if result structure is different
-        return f"Search completed for '{search_term}' in {delivery_address}. Browser automation finished successfully."
-        
-    except Exception as e:
-        return f"Error searching for '{search_term}': {str(e)}"
+# REMOVED: find_menu_options tool - search functionality now handled by fast taco search MCP
+# This server now focuses purely on order fulfillment
 
 async def perform_search(request_id: str, search_term: str, delivery_address: str, task: str, context: Context):
     """Perform the actual search in the background."""
@@ -147,30 +71,105 @@ async def get_search_results(request_id: str) -> str:
     return search_results[request_id]
 
 @mcp.tool()
-async def order_food(item_url: str, item_name: str, context: Context) -> str:
-    """Order food from a restaurant.
+async def order_food(restaurant_name: str, item_name: str, context: Context, item_url: str = "", quantity: int = 1, delivery_address: str = "809 Bouldin Ave, Austin, TX 78704") -> str:
+    """Place an order for specific food items from a restaurant on Uber Eats.
     
     Args:
-        restaurant_url: URL of the restaurant
-        item_name: Name of the item to order
+        restaurant_name: Name of the restaurant (from fast search results)
+        item_name: Name of the item to order (from fast search results)
+        item_url: Direct URL to the item (if available from search)
+        quantity: Number of items to order (default: 1)
+        delivery_address: Delivery address for the order
     """
     
-    task = f"""
-1. Go to {item_url}
-2. Click "Add to order"
-3. Wait 3 seconds
-4. Click "Go to checkout"
-5. If there are upsell modals, click "Skip"
-6. Click "Place order"
+    # If we have a direct item URL, use it; otherwise construct search-based task
+    if item_url and item_url.startswith("http"):
+        task = f"""
+1. Go directly to the item URL: {item_url}
+2. If quantity selector is available, set quantity to {quantity}
+3. Click "Add to cart" or "Add to order"
+4. Wait for item to be added to cart
+5. Navigate to cart/checkout
+6. Review order details for {restaurant_name}
+7. Confirm delivery address: {delivery_address}
+8. Complete the order placement process
+9. Capture order confirmation details
+"""
+    else:
+        # Fallback: search-based ordering
+        task = f"""
+1. Go to https://www.ubereats.com
+2. Search for "{restaurant_name}" restaurant
+3. Click on {restaurant_name} from search results
+4. Look for "{item_name}" on the menu
+5. If quantity selector is available, set quantity to {quantity}
+6. Click "Add to cart" for {item_name}
+7. Navigate to cart/checkout
+8. Review order details
+9. Confirm delivery address: {delivery_address}
+10. Complete the order placement process
+11. Capture order confirmation details
 """
     
     # Start the background task for ordering
     asyncio.create_task(
-        perform_order(item_url, item_name, task, context)
+        perform_order(restaurant_name, item_name, task, context)
     )
     
-    # Return a message immediately
-    return f"Order for '{item_name}' started. Your order is being processed."
+    # Return immediate confirmation
+    return f"Order started: {quantity}x {item_name} from {restaurant_name}. Processing your order now!"
+
+@mcp.tool()
+async def place_multiple_items_order(restaurant_name: str, items: list, context: Context, delivery_address: str = "809 Bouldin Ave, Austin, TX 78704") -> str:
+    """Place an order for multiple items from the same restaurant.
+    
+    Args:
+        restaurant_name: Name of the restaurant
+        items: List of items with name, quantity, and optional item_url
+        delivery_address: Delivery address for the order
+    """
+    
+    items_text = []
+    for item in items:
+        item_name = item.get('name', '')
+        quantity = item.get('quantity', 1)
+        items_text.append(f"{quantity}x {item_name}")
+    
+    items_summary = ", ".join(items_text)
+    
+    task = f"""
+1. Go to https://www.ubereats.com
+2. Search for "{restaurant_name}" restaurant
+3. Click on {restaurant_name} from search results
+4. Add the following items to cart:
+"""
+    
+    for item in items:
+        item_name = item.get('name', '')
+        quantity = item.get('quantity', 1)
+        item_url = item.get('item_url', '')
+        
+        if item_url:
+            task += f"""
+   - Go to {item_url} and add {quantity}x {item_name}"""
+        else:
+            task += f"""
+   - Find "{item_name}" on menu and add {quantity} to cart"""
+    
+    task += f"""
+5. Navigate to cart/checkout
+6. Review all items in order
+7. Confirm delivery address: {delivery_address}
+8. Complete the order placement process
+9. Capture order confirmation details
+"""
+    
+    # Start the background task for ordering
+    asyncio.create_task(
+        perform_order(restaurant_name, f"Multiple items: {items_summary}", task, context)
+    )
+    
+    return f"Multi-item order started from {restaurant_name}: {items_summary}. Processing your order now!"
 
 async def perform_order(restaurant_url: str, item_name: str, task: str, context: Context):
     """Perform the actual food ordering in the background."""

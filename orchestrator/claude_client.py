@@ -72,16 +72,65 @@ Keep it friendly and conversational but concise!"""
             tools = [
                 {
                     "name": "search_restaurants",
-                    "description": "Search for taco restaurants on Uber Eats",
+                    "description": "Search for taco restaurants on Uber Eats using fast database lookup",
                     "input_schema": {
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Search query (e.g., 'tacos', 'Mexican food')"
+                                "description": "Search query (e.g., 'tacos', 'Mexican food', restaurant name, or Austin area)"
                             }
                         },
                         "required": ["query"]
+                    }
+                },
+                {
+                    "name": "get_restaurant_details",
+                    "description": "Get detailed information about a specific taco restaurant including hours, reviews, and best items",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "restaurant_name": {
+                                "type": "string",
+                                "description": "Name of the restaurant to get details for"
+                            }
+                        },
+                        "required": ["restaurant_name"]
+                    }
+                },
+                {
+                    "name": "get_top_rated_tacos",
+                    "description": "Get the top-rated taco restaurants in Austin with high ratings and reviews",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "limit": {
+                                "type": "integer",
+                                "description": "Number of top restaurants to return (default: 5)",
+                                "minimum": 1,
+                                "maximum": 10
+                            }
+                        }
+                    }
+                },
+                {
+                    "name": "search_by_area",
+                    "description": "Search for taco restaurants in a specific Austin area or neighborhood",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "area": {
+                                "type": "string",
+                                "description": "Austin area, neighborhood, or street name (e.g., 'downtown', 'south austin', 'lamar')"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of results (default: 8)",
+                                "minimum": 1,
+                                "maximum": 15
+                            }
+                        },
+                        "required": ["area"]
                     }
                 },
                 {
@@ -103,8 +152,40 @@ Keep it friendly and conversational but concise!"""
                     }
                 },
                 {
-                    "name": "place_order",
-                    "description": "Place a taco order at a restaurant on Uber Eats",
+                    "name": "order_food",
+                    "description": "Place an order for specific food items from a restaurant (use after finding items with search tools)",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "restaurant_name": {
+                                "type": "string",
+                                "description": "Name of the restaurant (from search results)"
+                            },
+                            "item_name": {
+                                "type": "string",
+                                "description": "Name of the specific item to order (from search results)"
+                            },
+                            "quantity": {
+                                "type": "integer",
+                                "description": "Number of items to order (default: 1)",
+                                "minimum": 1,
+                                "maximum": 10
+                            },
+                            "item_url": {
+                                "type": "string",
+                                "description": "Direct URL to the item (if available from search results)"
+                            },
+                            "delivery_address": {
+                                "type": "string",
+                                "description": "Delivery address (default: Austin, TX)"
+                            }
+                        },
+                        "required": ["restaurant_name", "item_name"]
+                    }
+                },
+                {
+                    "name": "place_multiple_items_order",
+                    "description": "Place an order for multiple items from the same restaurant",
                     "input_schema": {
                         "type": "object",
                         "properties": {
@@ -117,24 +198,17 @@ Keep it friendly and conversational but concise!"""
                                 "items": {
                                     "type": "object",
                                     "properties": {
-                                        "name": {"type": "string"},
-                                        "quantity": {"type": "integer", "minimum": 1},
-                                        "customizations": {
-                                            "type": "array",
-                                            "items": {"type": "string"}
-                                        },
-                                        "notes": {"type": "string"}
+                                        "name": {"type": "string", "description": "Item name"},
+                                        "quantity": {"type": "integer", "minimum": 1, "description": "Quantity"},
+                                        "item_url": {"type": "string", "description": "Direct item URL (optional)"}
                                     },
                                     "required": ["name", "quantity"]
-                                }
+                                },
+                                "description": "List of items to order from the restaurant"
                             },
                             "delivery_address": {
                                 "type": "string",
-                                "description": "Delivery address"
-                            },
-                            "special_instructions": {
-                                "type": "string",
-                                "description": "Special delivery instructions"
+                                "description": "Delivery address (default: Austin, TX)"
                             }
                         },
                         "required": ["restaurant_name", "items"]
