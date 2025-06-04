@@ -272,12 +272,22 @@ class MCPOrchestrator:
             platform = Platform.UBER_EATS
             
             # Route to appropriate method
-            if function_name == "search_restaurants":
-                return await self.client.search_restaurants(
-                    platform=platform,
-                    query=parameters.get("query", ""),
-                    session_id=session_id
-                )
+            if function_name == "search_tacos":
+                # Use fast taco search for general taco search
+                try:
+                    result = await taco_search_client.search_tacos(
+                        query=parameters.get("query", ""),
+                        limit=parameters.get("limit", 10),
+                        session_id=session_id
+                    )
+                    return result
+                except Exception as e:
+                    return MCPResponse(
+                        success=False,
+                        error=f"Error searching tacos: {str(e)}",
+                        platform=platform,
+                        session_id=session_id
+                    )
             
             elif function_name == "get_restaurant_details":
                 # Use fast taco search for restaurant details
@@ -328,19 +338,21 @@ class MCPOrchestrator:
                         session_id=session_id
                     )
             
-            elif function_name == "intelligent_search":
-                # Use fast taco search with Claude intelligence
+            elif function_name == "search_menu_items":
+                # Use fast taco search for menu item search
                 try:
-                    result = await taco_search_client.intelligent_search(
+                    # Import the search_menu_items method from taco_search_client
+                    # Note: This method should exist in the simplified server
+                    result = await taco_search_client.search_tacos(
                         query=parameters.get("query", ""),
-                        limit=parameters.get("limit", 10),
+                        limit=parameters.get("limit", 15),
                         session_id=session_id
                     )
                     return result
                 except Exception as e:
                     return MCPResponse(
                         success=False,
-                        error=f"Error with intelligent search: {str(e)}",
+                        error=f"Error searching menu items: {str(e)}",
                         platform=platform,
                         session_id=session_id
                     )

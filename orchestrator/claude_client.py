@@ -71,14 +71,20 @@ Keep it friendly and conversational but concise!"""
             # Define available tools/functions
             tools = [
                 {
-                    "name": "search_restaurants",
-                    "description": "Search for taco restaurants on Uber Eats using fast database lookup",
+                    "name": "search_tacos",
+                    "description": "Search for taco restaurants using fast database lookup",
                     "input_schema": {
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
                                 "description": "Search query (e.g., 'tacos', 'Mexican food', restaurant name, or Austin area)"
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of results (default: 10)",
+                                "minimum": 1,
+                                "maximum": 15
                             }
                         },
                         "required": ["query"]
@@ -134,20 +140,20 @@ Keep it friendly and conversational but concise!"""
                     }
                 },
                 {
-                    "name": "intelligent_search",
-                    "description": "Advanced AI-powered search that analyzes the entire database including reviews for semantic matching (best for complex queries like 'steak tacos', 'spicy beef')",
+                    "name": "search_menu_items",
+                    "description": "Search for specific taco types or menu items mentioned in reviews (e.g., 'beef', 'al pastor', 'spicy', 'carnitas')",
                     "input_schema": {
                         "type": "object",
                         "properties": {
                             "query": {
                                 "type": "string",
-                                "description": "Natural language search query (e.g., 'best steak tacos', 'spicy beef tacos', 'carne asada')"
+                                "description": "Search term for menu items (e.g., 'beef', 'al pastor', 'spicy', 'carnitas')"
                             },
                             "limit": {
                                 "type": "integer",
-                                "description": "Maximum number of results (default: 10)",
+                                "description": "Maximum number of results (default: 15)",
                                 "minimum": 1,
-                                "maximum": 15
+                                "maximum": 20
                             }
                         },
                         "required": ["query"]
